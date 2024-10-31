@@ -1,6 +1,6 @@
 {
     "dislocationType": "edge",
-    "rootDir": "/home/anon/Documents/Research/Github/calculatePartialDistance/VTKdata/relaxation/no-noise/AlMg5-IMG1-timeIntTest-nodeTest5/edge/",
+    "rootDir": "/home/anon/Documents/Research/Github/calculatePartialDistance/exampleVTKdata/relaxation/no-noise/AlMg5/edge",
     "vtkDataDir": "",
     "glideDirection": "x",
     "glidePlaneNormal": "z",
