@@ -1,13 +1,20 @@
 {
-    "dislocationType": "edge",
-    "rootDir": "/home/anon/Documents/Research/Github/calculatePartialDistance/exampleVTKdata/relaxation/no-noise/AlMg5/edge",
+    "dislocationType": "",
+    "rootDir": "/home/anon/Documents/Research/Github/calculatePartialDistance/VTKdata/quad3/stressResponse/SSSF-noise-AlMg15-S/140MPa",
     "vtkDataDir": "",
     "glideDirection": "x",
     "glidePlaneNormal": "z",
     "lineTangent": "y",
     "plotDislocation": true,
+    "saveSeparationDist": true,
+    "plotTotalSepDist": false,
     "dataDir": "data/",
     "glidePlane1PlotDir": "glidePlane1Figures/",
-    "glidePlane2PlotDir": "glidePlane2Figures/"
+    "glidePlane2PlotDir": "glidePlane2Figures/",
+    "glidePlane1DistDir": "glidePlane1Distribution/",
+    "glidePlane2DistDir": "glidePlane2Distribution/",
+    "totalPlane1DistDir": "totalPlane1Distribution/",
+    "totalPlane2DistDir": "totalPlane2Distribution/",
+    "saveVideo": false
 }
 

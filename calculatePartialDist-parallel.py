@@ -1,19 +1,21 @@
-import numpy as np
 import os
 import re
 import vtk
 import shutil
 import time
 import json
-from collections import defaultdict
-from multiprocessing import Pool
+import numpy as np
 import matplotlib
-import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
 # non-interactive backend
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from collections import defaultdict
+from multiprocessing import Pool
 
 
-def extract_cells(connectivity_matrix):
+def extract_cells(connectivity_matrix: np.ndarray) -> np.ndarray:
     cells = []
     i = 0
     while i < len(connectivity_matrix):
@@ -28,7 +30,7 @@ def extract_cells(connectivity_matrix):
     return cells
 
 
-def build_segments(cells):
+def build_segments(cells: dict) -> list:
     # Dictionary to store connections between cells
     connectivity_map = defaultdict(set)
 
@@ -60,7 +62,7 @@ def build_segments(cells):
     return segments
 
 
-def segments_to_dict(segments):
+def segments_to_dict(segments: list) -> dict:
     segments_dict = {}
 
     for i, segment in enumerate(segments):
@@ -74,7 +76,7 @@ def segments_to_dict(segments):
     return segments_dict
 
 
-def segments_to_location_dict(segments_dict, points):
+def segments_to_location_dict(segments_dict: dict, points: np.ndarray) -> dict:
     segments_location_dict = {}
 
     for segment_id, point_ids in segments_dict.items():
@@ -98,7 +100,7 @@ def calculate_average(dictionary):
 
 # write a function to capture nodal positions from .vtk and detect outliers
 # return: dictionary of positions where the key is the dislocation index
-def captureVTKDipolePositions(filename):
+def captureVTKDipolePositions(filename: str):
 
     reader = vtk.vtkGenericDataObjectReader()  # set the vtkReader
     reader.SetFileName(filename)  # declare the vtk filename
@@ -124,9 +126,9 @@ def captureVTKDipolePositions(filename):
 # Define a function to extract the number from the string
 def extractNumber(s: str) -> int:
     # return int(re.search(r"\d+", s).group())
-    match = re.search(r'quadrature_(\d+)', s)
+    match = re.search(r"quadrature_(\d+)", s)
     # Return a large number if no match is found
-    return int(match.group(1)) if match else float('inf')
+    return int(match.group(1)) if match else float("inf")
 
 
 def calculateAvgPos(dislocationType: str, glidePlane: dict) -> float:
@@ -149,25 +151,24 @@ def calculateAvgPos(dislocationType: str, glidePlane: dict) -> float:
 
 
 def writeAvgData(
-    #vtkDataDir: str, dataDir: str, avgPos: dict, tStep: int, idx: int, fName: str
-    vtkDataDir: str, dataDir: str, avgPos: dict, tStep: int, fName: str
+    vtkDataDir: str,
+    dataDir: str,
+    avgPos: dict,
+    tStep: int,
+    fName: str,
 ) -> None:
-    # create directory if it doesn't exist
-    # if not os.path.exists(f"{vtkDataDir}/{dataDir}"):
-    #     os.makedirs(f"{vtkDataDir}/{dataDir}")
-
-    # write header
-    # if not os.path.exists(f"{vtkDataDir}/{dataDir}/{fName}"):
-    #     with open(f"{vtkDataDir}/{dataDir}/{fName}", "a") as f:
-    #         f.write(f"# tStep leadAvgPos trailAvgPos sepAvg\n")
-
     # write the average separation data to a file
     with open(f"{vtkDataDir}/{dataDir}/{fName}", "a") as f:
         f.write(f"{tStep} {avgPos['lead']} {avgPos['trail']} {avgPos['avgSep']}\n")
 
 
 def plotGlidePlane(
-    dislocationType: str, vtkDataDir: str, figDir: str, glidePlane: dict, avgPos: dict, tStep: int
+    dislocationType: str,
+    vtkDataDir: str,
+    figDir: str,
+    glidePlane: dict,
+    avgPos: dict,
+    tStep: int,
 ) -> None:
     match dislocationType:
         case "edge":
@@ -179,36 +180,32 @@ def plotGlidePlane(
         case _:
             exit("invalid dislocation type")
 
-    # create plot object
-    # fig, ax = plt.subplots(figsize=(6, 13), dpi=200)
-
     # set color
     color = {"lead": "#b59461", "trail": "#d03a77"}
 
     for partialType, pos in glidePlane.items():
-        # sort the data based on the line tangent direction
         match dislocationType:
             case "edge":
-                # create plot object
+                # create an array of sorting index based on the line tangent direction
                 sortIdx = np.argsort(pos[:, 1])
-                ax.axvline(avgPos[partialType], color=color[partialType], linestyle="--")
+                # draw average line position
+                ax.axvline(
+                    avgPos[partialType], color=color[partialType], linestyle="--"
+                )
             case "screw":
-                # create plot object
+                # create an array of sorting index based on the line tangent direction
                 sortIdx = np.argsort(pos[:, 0])
-                ax.axhline(avgPos[partialType], color=color[partialType], linestyle="--")
+                # draw average line position
+                ax.axhline(
+                    avgPos[partialType], color=color[partialType], linestyle="--"
+                )
             case _:
                 exit("invalid dislocation type")
-        # sortIdx = np.argsort(pos[:, 1])
+        # sort the data based on the line tangent direction
         pos = pos[sortIdx]
         # plot dislocation line
+        # ax.plot(pos[:, 0], pos[:, 1], '-o', markersize=0.8, color=color[partialType])
         ax.plot(pos[:, 0], pos[:, 1], color=color[partialType])
-        # plot the average position
-        # ax.axvline(avgPos[partialType], color=color[partialType], linestyle="--")
-        # ax.axhline(avgPos[partialType], color=color[partialType], linestyle="--")
-
-    # create directory if it doesn't exist
-    #if not os.path.exists(f"{vtkDataDir}/{figDir}"):
-    #    os.makedirs(f"{vtkDataDir}/{figDir}")
 
     ax.grid()
     ax.set_xlabel("x [$\\vec{b}$]")
@@ -229,21 +226,312 @@ def pre_render() -> None:
     plt.close()
 
 
+def plotSepationDist(
+    dislocationType: str,
+    vtkDataDir: str,
+    figDir: str,
+    glidePlane: dict,
+    tStep: int,
+) -> None:
+    # glidePlane dict has "lead" and "trail" keys
+    for partialType, pos in glidePlane.items():
+        match dislocationType:
+            case "edge":
+                # create an array of sorting index based on the line tangent direction
+                sortIdx = np.argsort(pos[:, 1])
+                # draw average line position
+            case "screw":
+                # create an array of sorting index based on the line tangent direction
+                sortIdx = np.argsort(pos[:, 0])
+                # draw average line position
+            case _:
+                exit("invalid dislocation type")
+        # sort the data based on the line tangent direction
+        pos = pos[sortIdx]
+        glidePlane[partialType] = np.around(pos, decimals=3)
+        # plot dislocation line
+        # ax.plot(pos[:, 0], pos[:, 1], '-o', markersize=0.8, color=color[partialType])
+        # ax.plot(pos[:, 0], pos[:, 1], color=color[partialType])
+    xIdx, yIdx = 0, 1
+    separationDists = []
+
+    for nodePosLead in glidePlane["lead"]:
+        for nodePosTrail in glidePlane["trail"]:
+            match dislocationType:
+                case "edge":
+                    if np.abs(nodePosLead[yIdx] - nodePosTrail[yIdx]) < 0.1:
+                        nodeSeperationDist = np.abs(nodePosLead[xIdx]-nodePosTrail[xIdx])
+                        separationDists.append(nodeSeperationDist)
+                        break
+                case "screw":
+                    if np.abs(nodePosLead[xIdx] - nodePosTrail[xIdx]) < 0.1:
+                        nodeSeperationDist = np.abs(nodePosLead[yIdx]-nodePosTrail[yIdx])
+                        separationDists.append(nodeSeperationDist)
+                        break
+                case _:
+                    exit("invalid dislocation type")
+    separationDists = np.array(separationDists)
+
+    # save data
+    np.savetxt(f"{vtkDataDir}/{figDir}/{tStep}.txt", separationDists)
+
+    # create plot object
+    #fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+    #ax.hist(separationDists)
+    #figName = f"{vtkDataDir}/{figDir}/{tStep}.png"
+    #fig.savefig(figName)
+    #plt.close()
+
+
+def renderVideo(
+    vtkDataDir: str,
+    glidePlane1PlotDir: str,
+    glidePlane2PlotDir: str,
+    dislocationType: str,
+    results: list,
+) -> None:
+    match dislocationType:
+        case "edge":
+            # create plot object
+            fig, ax = plt.subplots(figsize=(6, 13), dpi=200)
+            # determine the plot range
+            tStep, lastGlidePlane1, lastGlidePlane2 = results[-1]
+            tStep, firstGlidePlane1, firstGlidePlane2 = results[0]
+            glideDirMaxLead = np.max(lastGlidePlane1["lead"][:, 0])
+            glideDirMinTrail = np.min(firstGlidePlane1["trail"][:, 0])
+        case "screw":
+            # create plot object
+            fig, ax = plt.subplots(figsize=(13, 6), dpi=200)
+            # determine the plot range, second column is y dir (glidedir)
+            tStep, lastGlidePlane1, lastGlidePlane2 = results[-1]
+            tStep, firstGlidePlane1, firstGlidePlane2 = results[0]
+            glideDirMaxLead = np.max(lastGlidePlane1["lead"][:, 1])
+            glideDirMinTrail = np.min(firstGlidePlane1["trail"][:, 1])
+        case _:
+            exit("invalid dislocation type")
+    plt.tight_layout()
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    buffer = 3
+    ax.set_xlim(glideDirMinTrail - buffer, glideDirMaxLead + buffer)
+    ax.grid(True)
+
+    imgs = []
+    for loopIdx, result in enumerate(results):
+        tStep = result[0]
+        glidePlane = result[1]
+        # glidePlane2 = result[2]
+        # set color
+        color = {"lead": "#b59461", "trail": "#d03a77"}
+        for idx, (partialType, pos) in enumerate(glidePlane.items()):
+            match dislocationType:
+                case "edge":
+                    # create an array of sorting index based on the line tangent direction
+                    sortIdx = np.argsort(pos[:, 1])
+                case "screw":
+                    # create an array of sorting index based on the line tangent direction
+                    sortIdx = np.argsort(pos[:, 0])
+                case _:
+                    exit("invalid dislocation type")
+            # sort the data based on the line tangent direction
+            pos = pos[sortIdx]
+
+            if idx == 0:
+                img1 = ax.plot(
+                    pos[:, 0], pos[:, 1], color=color[partialType], animated=True
+                )[0]
+            else:
+                # animation function can only take the list of matplotlib object, so [0]
+                img2 = ax.plot(
+                    pos[:, 0], pos[:, 1], color=color[partialType], animated=True
+                )[0]
+
+        imgs.append([img1, img2])
+
+    ani = animation.ArtistAnimation(
+        fig, imgs, interval=50, blit=True, repeat_delay=1000
+    )
+
+    writer = animation.FFMpegWriter(
+        fps=15, metadata=dict(artist="Me"), bitrate=1800, codec="vp9"
+    )
+
+    ani.save(f"{vtkDataDir}/{glidePlane1PlotDir}/video1.webm", writer=writer)
+    plt.close()
+
+    match dislocationType:
+        case "edge":
+            # create plot object
+            fig2, ax2 = plt.subplots(figsize=(6, 13), dpi=200)
+            # determine the plot range
+            tStep, lastGlidePlane1, lastGlidePlane2 = results[-1]
+            tStep, firstGlidePlane1, firstGlidePlane2 = results[0]
+            glideDirMinLead = np.min(lastGlidePlane2["lead"][:, 0])
+            glideDirMaxTrail = np.max(firstGlidePlane2["trail"][:, 0])
+        case "screw":
+            # create plot object
+            fig2, ax2 = plt.subplots(figsize=(13, 6), dpi=200)
+            # determine the plot range, second column is y dir (glidedir)
+            tStep, lastGlidePlane1, lastGlidePlane2 = results[-1]
+            tStep, firstGlidePlane1, firstGlidePlane2 = results[0]
+            glideDirMinLead = np.min(lastGlidePlane2["lead"][:, 1])
+            glideDirMaxTrail = np.max(firstGlidePlane2["trail"][:, 1])
+        case _:
+            exit("invalid dislocation type")
+    plt.tight_layout()
+    ax2.set_xlabel("")
+    ax2.set_ylabel("")
+    buffer = 3
+    ax2.set_xlim(glideDirMinLead - buffer, glideDirMaxTrail + buffer)
+    ax2.grid(True)
+    imgs = []
+    for loopIdx, result in enumerate(results):
+        tStep = result[0]
+        glidePlane = result[2]
+        # glidePlane2 = result[2]
+
+        # set color
+        color = {"lead": "#b59461", "trail": "#d03a77"}
+        for idx, (partialType, pos) in enumerate(glidePlane.items()):
+            match dislocationType:
+                case "edge":
+                    # create an array of sorting index based on the line tangent direction
+                    sortIdx = np.argsort(pos[:, 1])
+                case "screw":
+                    # create an array of sorting index based on the line tangent direction
+                    sortIdx = np.argsort(pos[:, 0])
+                case _:
+                    exit("invalid dislocation type")
+            # sort the data based on the line tangent direction
+            pos = pos[sortIdx]
+
+            if idx == 0:
+                img1 = ax2.plot(
+                    pos[:, 0], pos[:, 1], color=color[partialType], animated=True
+                )[0]
+            else:
+                # animation function can only take the list of matplotlib object, so [0]
+                img2 = ax2.plot(
+                    pos[:, 0], pos[:, 1], color=color[partialType], animated=True
+                )[0]
+
+        imgs.append([img1, img2])
+
+    ani = animation.ArtistAnimation(
+        fig2, imgs, interval=50, blit=True, repeat_delay=1000
+    )
+
+    writer = animation.FFMpegWriter(
+        fps=15, metadata=dict(artist="Me"), bitrate=1800, codec="vp9"
+    )
+
+    ani.save(f"{vtkDataDir}/{glidePlane2PlotDir}/video2.webm", writer=writer)
+
+
+def plotTotalDistribution(
+    vtkDataDir: str,
+    totalPlane1DistDir: str,
+    totalPlane2DistDir: str,
+    dislocationType: str,
+    results: list,
+) -> None:
+
+    totalSepDists = []
+    for loopIdx, result in enumerate(results):
+        tStep = result[0]
+
+        # wait until the dislocations find the stable state
+        if tStep < 500:
+            continue
+
+        glidePlane1 = result[1]
+        glidePlane2 = result[2]
+
+        #for idx, (partialType, pos) in enumerate(glidePlane1.items()):
+        for partialType, pos in glidePlane1.items():
+            match dislocationType:
+                case "edge":
+                    # create an array of sorting index based on the line tangent direction
+                    sortIdx = np.argsort(pos[:, 1])
+                case "screw":
+                    # create an array of sorting index based on the line tangent direction
+                    sortIdx = np.argsort(pos[:, 0])
+                case _:
+                    exit("invalid dislocation type")
+            # sort the data based on the line tangent direction
+            pos = pos[sortIdx]
+            glidePlane1[partialType] = np.around(pos, decimals=3)
+
+        xIdx, yIdx = 0, 1
+        separationDists = []
+        for nodePosLead in glidePlane1["lead"]:
+            for nodePosTrail in glidePlane1["trail"]:
+                match dislocationType:
+                    case "edge":
+                        if np.abs(nodePosLead[yIdx] - nodePosTrail[yIdx]) < 0.1:
+                            nodeSeperationDist = np.abs(nodePosLead[xIdx]-nodePosTrail[xIdx])
+                            separationDists.append(nodeSeperationDist)
+                            break
+                    case "screw":
+                        if np.abs(nodePosLead[xIdx] - nodePosTrail[xIdx]) < 0.1:
+                            nodeSeperationDist = np.abs(nodePosLead[yIdx]-nodePosTrail[yIdx])
+                            separationDists.append(nodeSeperationDist)
+                            break
+                    case _:
+                        exit("invalid dislocation type")
+        separationDists = np.array(separationDists)
+        totalSepDists.append(separationDists)
+
+    totalSepDists = np.array(totalSepDists)
+    # create plot object
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+    ax.hist(totalSepDists)
+    figName = f"{vtkDataDir}/{totalPlane1DistDir}/separationDistribution.png"
+    fig.savefig(figName)
+    plt.close()
+
+
 def process_vtk_file(vtkFilePath: str) -> None:
     # Parse JSON file
     with open("config.json") as f:
         config = json.load(f)
 
-    dislocType = config["dislocationType"]
+    # find alloy type
+    pattern = r"AlMg\d+"
+    for j in vtkFilePath.split('/'):
+        if 'AlMg' in j:
+            dummy = j.split('-')
+            for dummyStr in dummy:
+                alloy = re.search(pattern, dummyStr)
+                if alloy:
+                    alloy = alloy.group(0)
+                    break
+
+    # vtkFilePath includes the root vtk file directory
+    for i in vtkFilePath.split('/'):
+        # find the string that has the pattern 'AlMg5-IMG1-E/S'
+        if f"{alloy}-" in i:
+            disType = i.split('-')[-1]
+            match disType:
+                case "E":
+                    dislocType = "edge"
+                case "S":
+                    dislocType = "screw"
+
+    # dislocType = config["dislocationType"]
     # vtkDataDir = config["vtkDataDir"]
     plotDislocation = config["plotDislocation"]
     glidePlaneNormal = config["glidePlaneNormal"]
     dataDir = config["dataDir"]
     glidePlane1PlotDir = config["glidePlane1PlotDir"]
     glidePlane2PlotDir = config["glidePlane2PlotDir"]
+    glidePlane1DistDir = config["glidePlane1DistDir"]
+    glidePlane2DistDir = config["glidePlane2DistDir"]
+    saveSeparationDist = config["saveSeparationDist"]
+
 
     vtkFile = vtkFilePath.split("/")[-1]
-    #vtkFilePath = vtkFilePath.split("/")[0:-1]
+    # vtkFilePath = vtkFilePath.split("/")[0:-1]
     vtkDataDir = "/".join(vtkFilePath.split("/")[0:-1])
 
     # Extract the time step number
@@ -268,11 +556,11 @@ def process_vtk_file(vtkFilePath: str) -> None:
     for idx, val in dislocLoops.items():
         posIdx = axisIdx[glidePlaneNormal]
         val = np.array(val)
-        planeNormVals.append((idx, round(np.mean(val[:,posIdx]))))
+        planeNormVals.append((idx, round(np.mean(val[:, posIdx]))))
 
     # group the indexes based on the glide plane number
     loopIdx = {}
-    for idx1, vals1  in planeNormVals:
+    for idx1, vals1 in planeNormVals:
         for idx2, vals2 in planeNormVals:
             if vals1 == vals2 and idx1 != idx2:
                 if len(loopIdx) == 0:
@@ -292,16 +580,6 @@ def process_vtk_file(vtkFilePath: str) -> None:
         "trail": np.array(dislocLoops[p2Idx[1]]),
     }
 
-    #glidePlane1 = {
-    #    "lead": np.array(dislocLoops[0]),
-    #    "trail": np.array(dislocLoops[2]),
-    #}
-
-    #glidePlane2 = {
-    #    "lead": np.array(dislocLoops[1]),
-    #    "trail": np.array(dislocLoops[3]),
-    #}
-
     # Calculate leading/trailing avg position/avg separation distance
     gP1AvgPos = calculateAvgPos(dislocType, glidePlane1)
     gP2AvgPos = calculateAvgPos(dislocType, glidePlane2)
@@ -310,15 +588,23 @@ def process_vtk_file(vtkFilePath: str) -> None:
     writeAvgData(vtkDataDir, dataDir, gP1AvgPos, tStep, "glidePlane1Sep.txt")
     writeAvgData(vtkDataDir, dataDir, gP2AvgPos, tStep, "glidePlane2Sep.txt")
 
-    # create figure directory if it doesn't exist
-    # if not os.path.exists(f"{vtkDataDir}/{glidePlane1PlotDir}"):
-    #     os.makedirs(f"{vtkDataDir}/{glidePlane1PlotDir}")
-    # if not os.path.exists(f"{vtkDataDir}/{glidePlane2PlotDir}"):
-    #     os.makedirs(f"{vtkDataDir}/{glidePlane2PlotDir}")
-
     if plotDislocation:
-        plotGlidePlane(dislocType, vtkDataDir, glidePlane1PlotDir, glidePlane1, gP1AvgPos, tStep)
-        plotGlidePlane(dislocType, vtkDataDir, glidePlane2PlotDir, glidePlane2, gP2AvgPos, tStep)
+        plotGlidePlane(
+            dislocType, vtkDataDir, glidePlane1PlotDir, glidePlane1, gP1AvgPos, tStep
+        )
+        plotGlidePlane(
+            dislocType, vtkDataDir, glidePlane2PlotDir, glidePlane2, gP2AvgPos, tStep
+        )
+
+    if saveSeparationDist:
+        plotSepationDist(
+            dislocType, vtkDataDir, glidePlane1DistDir, glidePlane1, tStep
+        )
+        plotSepationDist(
+            dislocType, vtkDataDir, glidePlane2DistDir, glidePlane2, tStep
+        )
+
+    return tStep, glidePlane1, glidePlane2
 
 
 def main():
@@ -336,11 +622,42 @@ def main():
         config = json.load(f)
 
     rootDir = config["rootDir"]
-    #vtkDataDir = config["vtkDataDir"]
+
+    # find alloy type
+    pattern = r"AlMg\d+"
+    for j in rootDir.split('/'):
+        if 'AlMg' in j:
+            dummy = j.split('-')
+            for dummyStr in dummy:
+                alloy = re.search(pattern, dummyStr)
+                if alloy:
+                    alloy = alloy.group(0)
+                    break
+
+    # determine dislocation type
+    # vtkFilePath includes the root vtk file directory
+    for i in rootDir.split("/"):
+        # find the string that has the pattern 'AlMg5-IMG1-E/S'
+        if f"{alloy}-" in i:
+            disType = i.split("-")[-1]
+            match disType:
+                case "E":
+                    dislocType = "edge"
+                case "S":
+                    dislocType = "screw"
+    #dislocType = config["dislocationType"]
+
+    # vtkDataDir = config["vtkDataDir"]
     plotDislocation = config["plotDislocation"]
+    plotTotalSepDist = config["plotTotalSepDist"]
     dataDir = config["dataDir"]
     glidePlane1PlotDir = config["glidePlane1PlotDir"]
     glidePlane2PlotDir = config["glidePlane2PlotDir"]
+    glidePlane1DistDir = config["glidePlane1DistDir"]
+    glidePlane2DistDir = config["glidePlane2DistDir"]
+    totalPlane1DistDir = config["totalPlane1DistDir"]
+    totalPlane2DistDir = config["totalPlane2DistDir"]
+    saveVideo = config["saveVideo"]
 
     seedDataDirs = []
     with os.scandir(rootDir) as dirs:
@@ -359,13 +676,21 @@ def main():
             shutil.rmtree(f"{vtkDataDir}/{glidePlane1PlotDir}", ignore_errors=True)
         if os.path.exists(f"{vtkDataDir}/{glidePlane2PlotDir}"):
             shutil.rmtree(f"{vtkDataDir}/{glidePlane2PlotDir}", ignore_errors=True)
+        if os.path.exists(f"{vtkDataDir}/{glidePlane1DistDir}"):
+            shutil.rmtree(f"{vtkDataDir}/{glidePlane1DistDir}", ignore_errors=True)
+        if os.path.exists(f"{vtkDataDir}/{glidePlane2DistDir}"):
+            shutil.rmtree(f"{vtkDataDir}/{glidePlane2DistDir}", ignore_errors=True)
+        if os.path.exists(f"{vtkDataDir}/{totalPlane1DistDir}"):
+            shutil.rmtree(f"{vtkDataDir}/{totalPlane1DistDir}", ignore_errors=True)
+        if os.path.exists(f"{vtkDataDir}/{totalPlane2DistDir}"):
+            shutil.rmtree(f"{vtkDataDir}/{totalPlane2DistDir}", ignore_errors=True)
 
         # Read files
         vtkDislocFiles = []
         with os.scandir(vtkDataDir) as entries:
             for entry in entries:
                 if re.search(r"quadrature_", entry.name) and entry.is_file():
-                    #vtkDislocFiles.append(entry.name)
+                    # vtkDislocFiles.append(entry.name)
                     vtkDislocFiles.append(entry.path)
 
         # Sort the data based on the time step number
@@ -375,6 +700,10 @@ def main():
         os.makedirs(f"{vtkDataDir}/{dataDir}")
         os.makedirs(f"{vtkDataDir}/{glidePlane1PlotDir}")
         os.makedirs(f"{vtkDataDir}/{glidePlane2PlotDir}")
+        os.makedirs(f"{vtkDataDir}/{glidePlane1DistDir}")
+        os.makedirs(f"{vtkDataDir}/{glidePlane2DistDir}")
+        os.makedirs(f"{vtkDataDir}/{totalPlane1DistDir}")
+        os.makedirs(f"{vtkDataDir}/{totalPlane2DistDir}")
 
         # write header
         if not os.path.exists(f"{vtkDataDir}/{dataDir}/glidePlane1Sep.txt"):
@@ -392,11 +721,23 @@ def main():
         startT = time.perf_counter()
         # process the data with multiple threads
         with Pool(processes=workers) as pool:
-            results = pool.map(process_vtk_file, vtkDislocFiles)
+            # _ = pool.map(process_vtk_file, vtkDislocFiles)
             # exectue in order
+            results = pool.map(process_vtk_file, vtkDislocFiles)
         endT = time.perf_counter()
         duration = endT - startT
         print(f"{seedDataDir} prcessing task took {duration:.2f}s total")
+
+        if saveVideo:
+            print(f"rendering {seedDataDir} video...")
+            renderVideo(
+                vtkDataDir, glidePlane1PlotDir, glidePlane2PlotDir, dislocType, results
+            )
+
+        if plotTotalSepDist:
+            plotTotalDistribution(
+                vtkDataDir, totalPlane1DistDir, totalPlane2DistDir, dislocType, results
+            )
 
     return 0
 
